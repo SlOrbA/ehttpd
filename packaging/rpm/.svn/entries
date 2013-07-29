@@ -1,0 +1,27 @@
+8
+
+dir
+27
+http://hlan.net/repos/ehttpd/src/trunk/packaging/rpm
+http://hlan.net/repos
+
+
+
+2007-11-18T13:01:06.937085Z
+26
+
+
+
+svn:special svn:externals svn:needs-lock
+
+ehttpd.spec
+file
+29
+
+
+
+2007-11-18T13:54:26.000000Z
+148ad8ad1029b61782805a1c452c0e25
+2007-11-22T15:43:26.581118Z
+29
+

@@ -1,0 +1,28 @@
+# File originated from autoscan and edited by Lari Korpi
+# 8.6.2005,10.10.2006
+
+AC_PREREQ(2.57)
+AC_INIT(ehttpd, 0.03, lari.korpi@iki.fi)
+AC_CONFIG_AUX_DIR(config)
+AM_CONFIG_HEADER(config.h)
+AM_INIT_AUTOMAKE(ehttpd, 0.03)
+
+# Checks for programs.
+AC_PROG_CC
+
+# Checks for libraries.
+
+# Checks for header files.
+AC_HEADER_STDC
+AC_HEADER_SYS_WAIT
+AC_CHECK_HEADERS(sys/wait.h dirent.h regex.h sys/stat.h time.h stdio.h arpa/inet.h stdlib.h string.h sys/socket.h sys/types.h unistd.h)
+
+# Checks for typedefs, structures, and compiler characteristics.
+AC_TYPE_PID_T
+
+# Checks for library functions.
+AC_FUNC_FORK
+AC_FUNC_MALLOC
+AC_CHECK_LIB(socket, socket)
+AC_CHECK_FUNCS(memset socket bind send recv accept listen)
+AC_OUTPUT(Makefile source/Makefile)

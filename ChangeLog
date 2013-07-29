@@ -1,0 +1,8 @@
+2005-06-08  Lari Korpi <lari.korpi@iki.fi>
+
+	* configure.in : added checking for send, recv, accept, listen and bind
+	
+2005-06-08  Lari Korpi <lari.korpi@iki.fi>
+
+	* ehttpd : The initial release.
+

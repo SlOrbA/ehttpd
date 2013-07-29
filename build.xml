@@ -1,0 +1,45 @@
+<?xml version='1.0' encoding='utf-8'?>
+<!DOCTYPE project PUBLIC "-//ANT//DTD project//EN" "project.dtd">
+
+<project name="ehttp" default="all" basedir=".">
+  
+  <target name="Makefile.check">
+    <condition property="AnyMakefile.IsPresent">
+      <available file="Makefile"/>
+    </condition>
+  </target>
+  
+  <target name="clean" depends="Makefile.check" if="AnyMakefile.IsPresent">  
+    <exec executable="make">
+      <arg line="distclean" />
+    </exec>
+  </target>
+ 
+  <target name="all" depends="clean,configure,compile" />
+
+  <target name="integrate" depends="clean,svn-update,configure,compile,package" />
+
+  <target name="svn-update">
+    <exec executable="svn">
+      <arg line="up"/>
+    </exec>
+  </target>
+  
+  <target name="configure">
+    <exec executable="./configure" />
+    <condition property="NewMakefile.IsPresent">
+      <available file="Makefile"/>
+    </condition>
+  </target>
+
+  <target name="compile" depends="configure" if="NewMakefile.IsPresent">
+    <exec executable="make" />
+  </target>
+
+  <target name="package" depends="configure" if="NewMakefile.IsPresent">
+    <exec executable="make">
+      <arg line="dist" />
+    </exec>
+  </target>
+
+</project>

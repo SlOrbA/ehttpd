@@ -1,0 +1,7 @@
+*Changes in ehttpd 0.002
+
+**Autoconf made to check bind,recv,send,accept and listen functions.
+
+*Changes in ehttpd 0.001
+
+**The initial release with version 0.001.
