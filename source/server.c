@@ -33,6 +33,8 @@ int main(int argc, char *argv[]) {
   struct sockaddr_in http_server_address;
   struct sockaddr_in http_client_address;
 
+  unsigned short ip_version; /* IP Protocl version */
+  
   unsigned short http_server_port; /* Port Number for server */
 
   unsigned int client_length; /* Length of client's ip address */
@@ -40,12 +42,14 @@ int main(int argc, char *argv[]) {
   pid_t PID;
   unsigned int child_process_count = 0;
 
-  if (argc != 2) {
-    fprintf(stderr, "Usage: %s <Server Port>\n", argv[0]);
+  if (argc != 3) {
+    fprintf(stderr, "Usage: %s <4/6> <Server Port>\n", argv[0]);
     exit(1);
   }
 
-  http_server_port = atoi(argv[1]);
+
+  ip_version = atoi(argv[1]);
+  http_server_port = atoi(argv[2]);
 
   if ((server_socket = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP)) < 0) {
       printf("Server socket not obatined 00\n");
