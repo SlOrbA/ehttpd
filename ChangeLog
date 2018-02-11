@@ -1,3 +1,7 @@
+2018-02-11  Lari Korpi <lari.korpi@iki.fi>
+
+	* server.c : made IPv6 supported for opened sockets
+
 2005-06-08  Lari Korpi <lari.korpi@iki.fi>
 
 	* configure.in : added checking for send, recv, accept, listen and bind
