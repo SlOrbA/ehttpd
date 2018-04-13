@@ -1,0 +1,1 @@
+TESTS = $(check_PROGRAMS)
