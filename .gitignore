@@ -1,0 +1,5 @@
+*.o
+autom4te.cache
+config.status
+config.log
+config.h
