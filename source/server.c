@@ -26,7 +26,7 @@ int main(int argc, char *argv[]) {
 
   char page[1024*1024]={0}; /* Pointer to HTML page*/
 
-  int length=0;
+  int length=0; /* Initialising reponse lenght */
 
   http_request req;
 
@@ -47,7 +47,6 @@ int main(int argc, char *argv[]) {
     exit(1);
   }
 
-
   ip_version = atoi(argv[1]);
   http_server_port = atoi(argv[2]);
 
@@ -57,8 +56,22 @@ int main(int argc, char *argv[]) {
     }
 
   memset(&http_server_address, 0, sizeof(http_server_address));
-  http_server_address.sin_family = AF_INET;
+  if (ip_version == 4)
+    http_server_address.sin_family = AF_INET;
+  else if (ip_version == 6)
+    http_server_address.sin_family = AF_INET6;
+  else {
+    fprintf(stderr, "Default to IP version 6\n");
+    http_server_address.sin_family = AF_INET6;
+  }
+
   http_server_address.sin_addr.s_addr = htonl(INADDR_ANY);
+
+  if (http_server_port == 0) {
+    fprintf(stderr, "Default to port 8080\n");
+    http_server_port = 8080;
+  }
+
   http_server_address.sin_port = htons(http_server_port);
 
   if (bind(server_socket, (struct sockaddr *) &http_server_address, sizeof(http_server_address)) < 0) {
