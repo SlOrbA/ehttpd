@@ -24,5 +24,6 @@ AC_FUNC_FORK
 AC_CHECK_FUNCS(memset regcomp socket strtol)
 
 AC_CONFIG_FILES(Makefile
-                 source/Makefile)
+                 source/Makefile
+                 tests/Makefile)
 AC_OUTPUT
