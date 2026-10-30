@@ -354,6 +354,7 @@ LIBS = @LIBS@
 LTLIBOBJS = @LTLIBOBJS@
 MAKEINFO = @MAKEINFO@
 MKDIR_P = @MKDIR_P@
+NC = @NC@
 OBJEXT = @OBJEXT@
 PACKAGE = @PACKAGE@
 PACKAGE_BUGREPORT = @PACKAGE_BUGREPORT@
@@ -411,7 +412,7 @@ target_alias = @target_alias@
 top_build_prefix = @top_build_prefix@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
-@HAVE_WGET_TRUE@TESTS = run_tests.sh
+@HAVE_NC_TRUE@@HAVE_WGET_TRUE@TESTS = run_tests.sh
 EXTRA_DIST = run_tests.sh
 all: all-am
 
