@@ -22,7 +22,10 @@ AC_TYPE_SIZE_T
 # Checks for library functions.
 AC_FUNC_FORK
 AC_CHECK_FUNCS(memset regcomp socket strtol)
+AC_CHECK_PROG([WGET], [wget], [yes], [no])
+AM_CONDITIONAL([HAVE_WGET], [test "x$WGET" = "xyes"])
 
 AC_CONFIG_FILES(Makefile
-                 source/Makefile)
+                 source/Makefile
+                 tests/Makefile)
 AC_OUTPUT

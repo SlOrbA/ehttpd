@@ -26,8 +26,6 @@ int main(int argc, char *argv[]) {
 
   char page[1024*1024]={0}; /* Pointer to HTML page*/
 
-  int length=0; /* Initialising reponse lenght */
-
   http_request req;
 
   struct sockaddr_in http_server_address;
