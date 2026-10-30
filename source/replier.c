@@ -16,7 +16,7 @@ static int send_all(int socket_fd, const char *data, size_t length)
   return 0;
 }
 
-int http_replier(int client_socket, char *page)
+int http_replier(int client_socket, char *page, int status_code)
 {
   char http_header[1024];
   char date_buf[64];
@@ -34,13 +34,20 @@ int http_replier(int client_socket, char *page)
                               "%a, %d %b %Y %H:%M:%S GMT", gmt) == 0)
     return 0;
 
-  if (page[0] == '\0') {
+  if (status_code < 200 || status_code >= 300 || page[0] == '\0') {
+    const char *reason;
+    if (status_code == 200) status_code = 404;
+    reason = "Internal Server Error";
+    if (status_code == 400) reason = "Bad Request";
+    else if (status_code == 404) reason = "Not Found";
+    else if (status_code == 405) reason = "Method Not Allowed";
+    else if (status_code == 505) reason = "HTTP Version Not Supported";
     snprintf(page, 1024 * 1024,
-             "<html>\n<head>\n<title>HTTP 404 Not Found</title>\n"
-             "</head>\n<body><h1>Requested URL location is not available."
-             "</h1>\n</body>\n</html>\n");
+             "<html>\n<head><title>HTTP %d %s</title></head>\n"
+             "<body><h1>HTTP %d %s</h1></body>\n</html>\n",
+             status_code, reason, status_code, reason);
     snprintf(http_header, sizeof(http_header),
-             "HTTP/1.1 404 Not Found\r\n");
+             "HTTP/1.1 %d %s\r\n", status_code, reason);
   } else {
     snprintf(http_header, sizeof(http_header), "HTTP/1.1 200 OK\r\n");
   }

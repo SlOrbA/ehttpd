@@ -103,7 +103,11 @@ int main(int argc, char *argv[]) {
       close(server_socket);
       fprintf(stderr, "Server socket closed\n");  
       req=http_receptor(client_socket);
-      fprintf(stderr, "%s requested\n",req.target);
+      fprintf(stderr, "%s requested (method=%s host=%s status=%d)\n",
+              req.target, req.method, req.host, req.status_code);
+      if (req.status_code != 200) {
+        fprintf(stderr, "Request rejected with HTTP %d\n", req.status_code);
+      }
       
       if (strncmp(req.target,"/choice",(size_t)7) == 0) {
 	fprintf(stderr, "/choice is being read\n");
@@ -115,7 +119,7 @@ int main(int argc, char *argv[]) {
 	fprintf(stderr, "default is being read\n");
 	html_menu(req,page);
       }
-      reply_size = http_replier(client_socket,page);
+       reply_size = http_replier(client_socket,page,req.status_code);
       fprintf(stderr, "%d chars sent.\n",reply_size);
       close(client_socket);
       fprintf(stderr, "Client socket closed\n");
