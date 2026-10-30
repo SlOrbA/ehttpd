@@ -68,7 +68,7 @@ http_request http_receptor(int client_socket)
   while (line != NULL && line < header_end) {
     char *next = strchr(line + 1, '\n');
     char *value = line + 1;
-    char *line_end = next != NULL ? next : header_end;
+    char *line_end = next != NULL && next < header_end ? next : header_end;
     char *colon = strchr(value, ':');
     if (colon == NULL || colon >= line_end || colon == value) {
       req.status_code = 400;
@@ -87,7 +87,7 @@ http_request http_receptor(int client_socket)
     req.status_code = 400;
     return req;
   }
-  if (strcasecmp(req.method, "GET") != 0) {
+  if (strcmp(req.method, "GET") != 0) {
     req.status_code = 405;
     return req;
   }
