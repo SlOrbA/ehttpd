@@ -2,58 +2,59 @@
 #include <receptor.h>
 #include <booleans.h>
 #include <http.h>
+#include <stdio.h>
 #include <string.h>
+#include <sys/socket.h>
+
+static void copy_header_value(char *destination, size_t size, const char *value)
+{
+  while (*value == ' ' || *value == '\t') value++;
+  snprintf(destination, size, "%s", value);
+  destination[strcspn(destination, "\r\n")] = '\0';
+}
 
 http_request http_receptor(int client_socket)
 {
-  unsigned char tcp_buffer[RCVBUFSIZE]={0},end=FALSE;
-
-  unsigned char param[255]={0},value[225]={0};
-
+  char tcp_buffer[RCVBUFSIZE];
   http_request req;
+  size_t received = 0;
+  ssize_t rv;
+  char *header_end;
+  char *line;
 
-  unsigned int rv=0,received=0,i;
+  memset(&req, 0, sizeof(req));
+  req.parser_pass = FALSE;
+  memset(tcp_buffer, 0, sizeof(tcp_buffer));
 
-  memset(&req,0,sizeof(req));
-
-  req.parser_pass=TRUE;
-
-
-  do {
-    rv=recv(client_socket, tcp_buffer+received, RCVBUFSIZE, 0);
-
-    if (rv < 0) {
-      exit(1);
-    } else if (rv==0) {
-      exit(1);
-    }
-
-    received += rv;
-
-    if(tcp_buffer[received-1]=='\n')
-      {
-	if(tcp_buffer[received-2]=='\n'||tcp_buffer[received-3]=='\n')
-	  {
-	    end=TRUE;
-	  }
-      }
-
-  } while (!end);
-
-  if(sscanf(tcp_buffer,"%s %s HTTP/%s",req.method,req.target,req.version)) {
-    req.parser_pass=FALSE;
-  }
-  
-  if(strcmp(param,"Host")==0) {
-    strcpy(req.host,value);
-  } else if(strcmp(param,"User-Agent")==0) {
-    strcpy(req.useragent,value);
-  } else if(strcmp(param,"Referer")==0) {
-    strcpy(req.referer,value);
-  } else {
-    req.parser_pass=FALSE;
+  while (received < sizeof(tcp_buffer) - 1) {
+    rv = recv(client_socket, tcp_buffer + received,
+              sizeof(tcp_buffer) - 1 - received, 0);
+    if (rv <= 0) return req;
+    received += (size_t)rv;
+    tcp_buffer[received] = '\0';
+    if (strstr(tcp_buffer, "\r\n\r\n") || strstr(tcp_buffer, "\n\n")) break;
   }
 
+  header_end = strstr(tcp_buffer, "\r\n\r\n");
+  if (header_end == NULL) header_end = strstr(tcp_buffer, "\n\n");
+  if (header_end == NULL) return req;
 
+  if (sscanf(tcp_buffer, "%5s %1023s HTTP/%5s",
+             req.method, req.target, req.version) != 3) return req;
+
+  line = strstr(tcp_buffer, "\n");
+  while (line != NULL && line < header_end) {
+    char *next = strchr(line + 1, '\n');
+    char *value = line + 1;
+    if (strncmp(value, "Host:", 5) == 0)
+      copy_header_value(req.host, sizeof(req.host), value + 5);
+    else if (strncmp(value, "User-Agent:", 11) == 0)
+      copy_header_value(req.useragent, sizeof(req.useragent), value + 11);
+    else if (strncmp(value, "Referer:", 8) == 0)
+      copy_header_value(req.referer, sizeof(req.referer), value + 8);
+    line = next;
+  }
+
+  req.parser_pass = TRUE;
   return req;
 }

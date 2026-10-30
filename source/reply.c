@@ -8,10 +8,28 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <regex.h>
+#include <stdlib.h>
+#include <ctype.h>
+
+static int build_safe_path(const char *relative_path, char *path, size_t path_size)
+{
+  const char *part;
+  if (relative_path == NULL || relative_path[0] != '/' ||
+      strstr(relative_path, "\\") != NULL)
+    return -1;
+  part = relative_path;
+  while ((part = strstr(part, "..")) != NULL) {
+    if ((part == relative_path || part[-1] == '/') &&
+        (part[2] == '\0' || part[2] == '/')) return -1;
+    part += 2;
+  }
+  return snprintf(path, path_size, ".%s", relative_path) < (int)path_size ? 0 : -1;
+}
 
 int html_menu(http_request req, char *page) {
 
-  char cwd[]=".";
+  char full_path[1024];
+  char entry_path[2048];
 
   DIR *working_directory;
 
@@ -19,12 +37,17 @@ int html_menu(http_request req, char *page) {
 
   struct stat file_stat;
 
-  if(!stat(strcat(cwd,req.target),&file_stat)) {
+  if (build_safe_path(req.target, full_path, sizeof(full_path)) < 0 ||
+      stat(full_path, &file_stat) != 0) {
+    page[0] = 0;
+    return 0;
+  }
+  if(!stat(full_path,&file_stat)) {
     if(!S_ISDIR(file_stat.st_mode)) {
       page[0]=0;
       return 0;
     }
-    working_directory=opendir(strcat(cwd,req.target));
+    working_directory=opendir(full_path);
   } else {
     page[0]=0;
     return 0; 
@@ -41,7 +64,12 @@ int html_menu(http_request req, char *page) {
   working_directory_ent=readdir(working_directory);
   while (working_directory_ent != NULL) {
     if (strncmp(working_directory_ent->d_name,".",1)) {
-      stat(working_directory_ent->d_name,&file_stat);
+      snprintf(entry_path, sizeof(entry_path), "%s/%s", full_path,
+               working_directory_ent->d_name);
+      if (stat(entry_path, &file_stat) != 0) {
+        working_directory_ent=readdir(working_directory);
+        continue;
+      }
       if(S_ISREG(file_stat.st_mode)) {
 	sprintf(page+strlen(page),"<li><b>F</b>:<a href='/choice?edit=%s",req.target);
 	if (strcmp(req.target,"/")) {
@@ -65,6 +93,7 @@ int html_menu(http_request req, char *page) {
   }
 
   sprintf(page+strlen(page),"</ul>\n");
+  closedir(working_directory);
   sprintf(page+strlen(page),"<a href='/choice?new=%s'>Add new file</a>",req.target);
   sprintf(page+strlen(page),"</body>\n");
   sprintf(page+strlen(page),"</html>\n");
@@ -81,7 +110,7 @@ int html_choice(http_request req, char *page) {
   char buffer1[1024]={0};
   char buffer2[1024]={0};
   char buffer3[1024]={0};
-  char cwd[]=".";
+  char safe_file_path[2048];
  
   FILE *fd=0,*fd_tmp=0;
 
@@ -89,8 +118,11 @@ int html_choice(http_request req, char *page) {
   
   regmatch_t pm[64]={0};
   
-  while(req.target[i]!='\0') {
+  while(req.target[i]!='\0' && ii < (int)sizeof(buffer1)-1) {
     if(req.target[i]=='%') {
+      if (req.target[i + 1] == '\0' || req.target[i + 2] == '\0' ||
+          !isxdigit((unsigned char)req.target[i + 1]) ||
+          !isxdigit((unsigned char)req.target[i + 2])) return 0;
       char tmp_buf[5]={0};
       tmp_buf[0] = '0';
       tmp_buf[1] = 'x';
@@ -111,10 +143,20 @@ int html_choice(http_request req, char *page) {
   strcpy(req.target,buffer1);
 
   regcomp(&get_method, "\\?" ,REG_EXTENDED);
-  regexec(&get_method, req.target, (size_t)strlen(req.target), pm, 0);
+  if (regexec(&get_method, req.target, 64, pm, 0) != 0) {
+    regfree(&get_method);
+    snprintf(page, 1024 * 1024,
+             "<html><body><h1>Invalid request</h1></body></html>\n");
+    return 1;
+  }
   regfree(&get_method);
 
   strcpy(file_path,&req.target[pm[0].rm_so+6]);
+  if (build_safe_path(file_path, safe_file_path, sizeof(safe_file_path)) < 0) {
+    snprintf(page, 1024 * 1024,
+             "<html><body><h1>Invalid path</h1></body></html>\n");
+    return 1;
+  }
 
   sprintf(page,"<html>\n");
   sprintf(page+strlen(page),"<head>\n");
@@ -125,13 +167,13 @@ int html_choice(http_request req, char *page) {
   sprintf(page+strlen(page),"<!-- buffer1:%s -->",buffer1);
  
   regcomp(&get_method, "&" ,REG_EXTENDED);
-  if(regexec(&get_method, file_path, (size_t)strlen(file_path), pm, 0)!=REG_NOMATCH) {
+  if(regexec(&get_method, file_path, 64, pm, 0)!=REG_NOMATCH) {
     strcpy(buffer2,&file_path[pm[0].rm_so+6]);
     line=atoi(buffer2);
     sprintf(page+strlen(page),"<!-- line1:%d -->",line);  
     sprintf(page+strlen(page),"<!-- buffer2:%s -->",buffer2);
     file_path[pm[0].rm_so]='\0';
-    if(regexec(&get_method, buffer2, (size_t)strlen(buffer2), pm, 0)!=REG_NOMATCH) {
+    if(regexec(&get_method, buffer2, 64, pm, 0)!=REG_NOMATCH) {
       int line2=0;
       strcpy(buffer3,&buffer2[pm[0].rm_so+6]);
       buffer2[pm[0].rm_so]='\0';
@@ -160,58 +202,60 @@ int html_choice(http_request req, char *page) {
   }
   
   if(strlen(buffer3)!=0) {
-    fd=fopen(strcat(cwd,file_path),"r+");
+    fd=fopen(safe_file_path,"r");
     fd_tmp=tmpfile();
     if(fd!=NULL && fd_tmp!=NULL) {
       
-      while(feof(fd)==0 && line!=i) { 
-	char tmp_buf=0;
-	tmp_buf=fgetc(fd);
+      {
+        int tmp_buf;
+        while((tmp_buf=fgetc(fd)) != EOF && line!=i) {
 	fputc(tmp_buf,fd_tmp);
 	if (tmp_buf=='\n') {
 	  i++;
 	}
+        }
       }
       
       fprintf(fd_tmp,"%s\n",buffer3);
 
-      while(feof(fd)==0 && line==i) { 
-	char tmp_buf=0;
-	tmp_buf=fgetc(fd);	
+      {
+        int tmp_buf;
+        while((tmp_buf=fgetc(fd)) != EOF && line==i) {
 	if (tmp_buf=='\n') {
 	  i++;
 	}
+        }
       }
 
-      while(feof(fd)==0) { 
-	char tmp_buf=0;
-	tmp_buf=fgetc(fd);
+      {
+        int tmp_buf;
+        while((tmp_buf=fgetc(fd)) != EOF) {
 	fputc(tmp_buf,fd_tmp);
+        }
       }
 
-      fflush(fd);
       fflush(fd_tmp);
       rewind(fd);
       rewind(fd_tmp);
 
-      while(feof(fd_tmp)==0) {
-	char tmp_buf=0;
-	tmp_buf=fgetc(fd_tmp);
-	fputc(tmp_buf,fd);
-      }
-
-      fclose(fd_tmp);
       fclose(fd);
+      fd=fopen(safe_file_path,"w");
+      if (fd != NULL) {
+        int tmp_buf;
+        while ((tmp_buf=fgetc(fd_tmp)) != EOF) fputc(tmp_buf, fd);
+        fclose(fd);
+      }
+      fclose(fd_tmp);
     }
     i=0;
    } else {
 
-    fd=fopen(strcat(cwd,file_path),"r");
+     fd=fopen(safe_file_path,"r");
     
     if(fd!=NULL) {
-      while(feof(fd)==0) { 
-	char tmp_buf=0;
-	tmp_buf=fgetc(fd);
+      {
+        int tmp_buf;
+        while((tmp_buf=fgetc(fd)) != EOF) {
 	if (tmp_buf=='\n') {
 	  if(line-1==i) {
 	    sprintf(page+strlen(page),"<form action='%s' method='get'>\n",req.target);
@@ -228,6 +272,7 @@ int html_choice(http_request req, char *page) {
 	if((line==i || line<0) && tmp_buf!='\n'){
 	  sprintf(page+strlen(page),"%c",tmp_buf);
 	}
+        }
       }
       fclose(fd);
     } else {
