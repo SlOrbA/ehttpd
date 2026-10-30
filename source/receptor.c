@@ -68,6 +68,12 @@ http_request http_receptor(int client_socket)
   while (line != NULL && line < header_end) {
     char *next = strchr(line + 1, '\n');
     char *value = line + 1;
+    char *line_end = next != NULL ? next : header_end;
+    char *colon = strchr(value, ':');
+    if (colon == NULL || colon >= line_end || colon == value) {
+      req.status_code = 400;
+      return req;
+    }
     if (strncasecmp(value, "Host:", 5) == 0)
       copy_header_value(req.host, sizeof(req.host), value + 5);
     else if (strncasecmp(value, "User-Agent:", 11) == 0)
