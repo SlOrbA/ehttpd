@@ -109,7 +109,9 @@ int main(int argc, char *argv[]) {
         fprintf(stderr, "Request rejected with HTTP %d\n", req.status_code);
       }
       
-      if (strncmp(req.target,"/choice",(size_t)7) == 0) {
+       if (req.status_code != 200) {
+        page[0] = '\0';
+       } else if (strncmp(req.target,"/choice",(size_t)7) == 0) {
 	fprintf(stderr, "/choice is being read\n");
 	html_choice(req,page);
       }

@@ -22,6 +22,8 @@ http_request http_receptor(int client_socket)
   ssize_t rv;
   char *header_end;
   char *line;
+  char request_line[RCVBUFSIZE];
+  size_t request_line_length;
 
   memset(&req, 0, sizeof(req));
   req.parser_pass = FALSE;
@@ -41,8 +43,22 @@ http_request http_receptor(int client_socket)
   if (header_end == NULL) header_end = strstr(tcp_buffer, "\n\n");
   if (header_end == NULL) return req;
 
-  if (sscanf(tcp_buffer, "%5s %1023s HTTP/%5s",
-             req.method, req.target, req.version) != 3) return req;
+  line = strchr(tcp_buffer, '\n');
+  if (line == NULL) return req;
+  request_line_length = (size_t)(line - tcp_buffer);
+  if (request_line_length > 0 && tcp_buffer[request_line_length - 1] == '\r')
+    request_line_length--;
+  if (request_line_length == 0 || request_line_length >= sizeof(request_line))
+    return req;
+  memcpy(request_line, tcp_buffer, request_line_length);
+  request_line[request_line_length] = '\0';
+
+  {
+    char extra;
+    if (sscanf(request_line, "%5s %1023s HTTP/%5s %c",
+               req.method, req.target, req.version, &extra) != 3)
+      return req;
+  }
   if (strcmp(req.version, "1.1") != 0) {
     req.status_code = 505;
     return req;

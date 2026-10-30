@@ -24,6 +24,7 @@ int http_replier(int client_socket, char *page, int status_code)
   struct tm *gmt;
   size_t header_length;
   size_t page_length;
+  const char *allow_header = "";
 
   if (now == (time_t)-1) {
     fprintf(stderr, "No time received.\n");
@@ -42,6 +43,7 @@ int http_replier(int client_socket, char *page, int status_code)
     else if (status_code == 404) reason = "Not Found";
     else if (status_code == 405) reason = "Method Not Allowed";
     else if (status_code == 505) reason = "HTTP Version Not Supported";
+    if (status_code == 405) allow_header = "Allow: GET\r\n";
     snprintf(page, 1024 * 1024,
              "<html>\n<head><title>HTTP %d %s</title></head>\n"
              "<body><h1>HTTP %d %s</h1></body>\n</html>\n",
@@ -53,9 +55,9 @@ int http_replier(int client_socket, char *page, int status_code)
   }
   snprintf(http_header + strlen(http_header),
            sizeof(http_header) - strlen(http_header),
-           "Date: %s\r\nServer: eHTTPd/beta\r\nContent-Length: %zu\r\n"
+           "Date: %s\r\nServer: eHTTPd/beta\r\n%sContent-Length: %zu\r\n"
            "Connection: close\r\nContent-Type: text/html; charset=utf-8\r\n\r\n",
-           date_buf, strlen(page));
+           date_buf, allow_header, strlen(page));
 
   header_length = strlen(http_header);
   page_length = strlen(page);
