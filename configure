@@ -646,8 +646,11 @@ ac_subst_vars='am__EXEEXT_FALSE
 am__EXEEXT_TRUE
 LTLIBOBJS
 LIBOBJS
+HAVE_NC_FALSE
+HAVE_NC_TRUE
 HAVE_WGET_FALSE
 HAVE_WGET_TRUE
+NC
 WGET
 am__fastdepCC_FALSE
 am__fastdepCC_TRUE
@@ -4888,12 +4891,64 @@ printf "%s\n" "no" >&6; }
 fi
 
 
+# Extract the first word of "nc", so it can be a program name with args.
+set dummy nc; ac_word=$2
+{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking for $ac_word" >&5
+printf %s "checking for $ac_word... " >&6; }
+if test ${ac_cv_prog_NC+y}
+then :
+  printf %s "(cached) " >&6
+else case e in #(
+  e) if test -n "$NC"; then
+  ac_cv_prog_NC="$NC" # Let the user override the test.
+else
+as_save_IFS=$IFS; IFS=$PATH_SEPARATOR
+for as_dir in $PATH
+do
+  IFS=$as_save_IFS
+  case $as_dir in #(((
+    '') as_dir=./ ;;
+    */) ;;
+    *) as_dir=$as_dir/ ;;
+  esac
+    for ac_exec_ext in '' $ac_executable_extensions; do
+  if as_fn_executable_p "$as_dir$ac_word$ac_exec_ext"; then
+    ac_cv_prog_NC="yes"
+    printf "%s\n" "$as_me:${as_lineno-$LINENO}: found $as_dir$ac_word$ac_exec_ext" >&5
+    break 2
+  fi
+done
+  done
+IFS=$as_save_IFS
+
+  test -z "$ac_cv_prog_NC" && ac_cv_prog_NC="no"
+fi ;;
+esac
+fi
+NC=$ac_cv_prog_NC
+if test -n "$NC"; then
+  { printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: $NC" >&5
+printf "%s\n" "$NC" >&6; }
+else
+  { printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: no" >&5
+printf "%s\n" "no" >&6; }
+fi
+
+
  if test "x$WGET" = "xyes"; then
   HAVE_WGET_TRUE=
   HAVE_WGET_FALSE='#'
 else
   HAVE_WGET_TRUE='#'
   HAVE_WGET_FALSE=
+fi
+
+ if test "x$NC" = "xyes"; then
+  HAVE_NC_TRUE=
+  HAVE_NC_FALSE='#'
+else
+  HAVE_NC_TRUE='#'
+  HAVE_NC_FALSE=
 fi
 
 
@@ -5034,6 +5089,10 @@ Usually this means the macro was only invoked conditionally." "$LINENO" 5
 fi
 if test -z "${HAVE_WGET_TRUE}" && test -z "${HAVE_WGET_FALSE}"; then
   as_fn_error $? "conditional \"HAVE_WGET\" was never defined.
+Usually this means the macro was only invoked conditionally." "$LINENO" 5
+fi
+if test -z "${HAVE_NC_TRUE}" && test -z "${HAVE_NC_FALSE}"; then
+  as_fn_error $? "conditional \"HAVE_NC\" was never defined.
 Usually this means the macro was only invoked conditionally." "$LINENO" 5
 fi
 

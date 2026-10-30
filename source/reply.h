@@ -4,4 +4,5 @@
 #include <http.h>
 int html_menu(http_request req, char *page);
 int html_choice(http_request req, char *page);
+int html_resource(http_request req, char *page);
 #endif

@@ -283,3 +283,87 @@ int html_choice(http_request req, char *page) {
   sprintf(page+strlen(page),"</html>\n");
   return 1;
 }
+
+static int action_is_edit(const char *query)
+{
+  return query != NULL && strcmp(query, "action=edit") == 0;
+}
+
+static int decode_form_content(const char *body, char *out, size_t out_size)
+{
+  size_t input = 0, output = 0;
+  if (strncmp(body, "content=", 8) != 0) return -1;
+  input = 8;
+  while (body[input] != '\0' && body[input] != '&') {
+    if (output + 1 >= out_size) return -1;
+    if (body[input] == '+') out[output++] = ' ';
+    else if (body[input] == '%' && isxdigit((unsigned char)body[input + 1]) &&
+             isxdigit((unsigned char)body[input + 2])) {
+      char hex[3] = { body[input + 1], body[input + 2], '\0' };
+      out[output++] = (char)strtol(hex, NULL, 16);
+      input += 2;
+    } else out[output++] = body[input];
+    input++;
+  }
+  out[output] = '\0';
+  return 0;
+}
+
+int html_resource(http_request req, char *page)
+{
+  char path[1024];
+  char safe_path[2048];
+  char content[65536];
+  char *query;
+  FILE *file;
+  struct stat file_stat;
+  size_t read_count;
+
+  snprintf(path, sizeof(path), "%s", req.target);
+  query = strchr(path, '?');
+  if (query != NULL) *query++ = '\0';
+  if (build_safe_path(path, safe_path, sizeof(safe_path)) < 0 ||
+      stat(safe_path, &file_stat) != 0) {
+    page[0] = '\0';
+    return 0;
+  }
+  if (S_ISDIR(file_stat.st_mode)) {
+    snprintf(req.target, sizeof(req.target), "%s", path);
+    return html_menu(req, page);
+  }
+  if (!S_ISREG(file_stat.st_mode)) {
+    page[0] = '\0';
+    return 0;
+  }
+
+  if (strcmp(req.method, "POST") == 0) {
+    if (!action_is_edit(query) || decode_form_content(req.body, content, sizeof(content)) < 0)
+      return 0;
+    file = fopen(safe_path, "w");
+    if (file == NULL) return 0;
+    fputs(content, file);
+    fclose(file);
+    snprintf(page, 1024 * 1024,
+             "<html><body><p>Saved <a href='%s'>%s</a>.</p></body></html>\n",
+             path, path);
+    return 1;
+  }
+
+  file = fopen(safe_path, "r");
+  if (file == NULL) return 0;
+  read_count = fread(content, 1, sizeof(content) - 1, file);
+  fclose(file);
+  content[read_count] = '\0';
+  if (action_is_edit(query)) {
+    snprintf(page, 1024 * 1024,
+             "<html><body><h2>Edit %s</h2><form method='post' action='%s?action=edit'>"
+             "<textarea name='content' rows='24' cols='80'>%s</textarea>"
+             "<br><input type='submit' value='Save'></form></body></html>\n",
+             path, path, content);
+  } else {
+    snprintf(page, 1024 * 1024,
+             "<html><body><h2>%s</h2><p><a href='%s?action=edit'>Edit</a></p>"
+             "<pre>%s</pre></body></html>\n", path, path, content);
+  }
+  return 1;
+}

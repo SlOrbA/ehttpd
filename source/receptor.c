@@ -6,6 +6,7 @@
 #include <ctype.h>
 #include <string.h>
 #include <strings.h>
+#include <stdlib.h>
 #include <sys/socket.h>
 
 static void copy_header_value(char *destination, size_t size, const char *value)
@@ -42,6 +43,8 @@ http_request http_receptor(int client_socket)
   char request_line[RCVBUFSIZE];
   size_t request_line_length;
   int host_seen = 0;
+  size_t content_length = 0;
+  size_t header_size;
 
   memset(&req, 0, sizeof(req));
   req.parser_pass = FALSE;
@@ -60,6 +63,8 @@ http_request http_receptor(int client_socket)
   header_end = strstr(tcp_buffer, "\r\n\r\n");
   if (header_end == NULL) header_end = strstr(tcp_buffer, "\n\n");
   if (header_end == NULL) return req;
+  header_size = (size_t)(header_end - tcp_buffer) +
+                (header_end[0] == '\r' ? 4 : 2);
 
   line = strchr(tcp_buffer, '\n');
   if (line == NULL) return req;
@@ -104,6 +109,15 @@ http_request http_receptor(int client_socket)
       copy_header_value(req.useragent, sizeof(req.useragent), value + 11);
     else if (strncasecmp(value, "Referer:", 8) == 0)
       copy_header_value(req.referer, sizeof(req.referer), value + 8);
+    else if (strncasecmp(value, "Content-Length:", 15) == 0) {
+      char *end;
+      unsigned long length = strtoul(value + 15, &end, 10);
+      if (end == value + 15 || end > line_end || length >= sizeof(req.body))
+        return req;
+      while (end < line_end && (*end == ' ' || *end == '\t' || *end == '\r')) end++;
+      if (end != line_end) return req;
+      content_length = (size_t)length;
+    }
     line = next;
   }
 
@@ -111,9 +125,22 @@ http_request http_receptor(int client_socket)
     req.status_code = 400;
     return req;
   }
-  if (strcmp(req.method, "GET") != 0) {
+  if (strcmp(req.method, "GET") != 0 && strcmp(req.method, "HEAD") != 0 &&
+      strcmp(req.method, "POST") != 0) {
     req.status_code = 405;
     return req;
+  }
+  if (strcmp(req.method, "POST") == 0) {
+    while (received < header_size + content_length &&
+           received < sizeof(tcp_buffer) - 1) {
+      rv = recv(client_socket, tcp_buffer + received,
+                sizeof(tcp_buffer) - 1 - received, 0);
+      if (rv <= 0) return req;
+      received += (size_t)rv;
+    }
+    if (content_length == 0 || received < header_size + content_length) return req;
+    memcpy(req.body, tcp_buffer + header_size, content_length);
+    req.body[content_length] = '\0';
   }
   req.status_code = 200;
   req.parser_pass = TRUE;

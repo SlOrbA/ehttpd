@@ -1,12 +1,12 @@
 #!/bin/sh
 set -eu
 
-if ! command -v wget >/dev/null 2>&1; then
-  echo "SKIP: wget is required for the HTTP smoke test" >&2
+if ! command -v wget >/dev/null 2>&1 || ! command -v nc >/dev/null 2>&1; then
+  echo "SKIP: wget and nc are required for the HTTP tests" >&2
   exit 77
 fi
 
-SERVER="../source/ehttpd"
+SERVER=$(cd ../source && pwd)/ehttpd
 TEST_TMPDIR=$(mktemp -d "${TMPDIR:-/tmp}/ehttpd-test.XXXXXX")
 SERVER_PID=
 
@@ -18,6 +18,8 @@ cleanup() {
   rm -rf "$TEST_TMPDIR"
 }
 trap cleanup EXIT INT TERM
+
+cd "$TEST_TMPDIR"
 
 # Try several high ports. EHTTPD_TEST_PORT is useful when a caller needs to
 # select a specific port, while normal runs retry if the derived port is busy.
@@ -53,3 +55,24 @@ done
 test -s "$TEST_TMPDIR/response.html"
 grep -q '<html>' "$TEST_TMPDIR/response.html"
 grep -q 'Ready serve requests' "$TEST_TMPDIR/server.err"
+
+request() {
+  printf '%b' "$1" | nc -w 2 127.0.0.1 "$PORT"
+}
+
+printf 'original value\n' > "$TEST_TMPDIR/settings.txt"
+response=$(request 'HEAD /settings.txt HTTP/1.1\r\nHost: example\r\n\r\n')
+printf '%s\n' "$response" | grep -q 'HTTP/1.1 200 OK'
+printf '%s\n' "$response" | grep -q 'Content-Length:'
+if printf '%s\n' "$response" | grep -q '<html>'; then
+  exit 1
+fi
+
+wget -T 1 -qO "$TEST_TMPDIR/edit.html" \
+  "http://127.0.0.1:$PORT/settings.txt?action=edit"
+grep -q "method='post'" "$TEST_TMPDIR/edit.html"
+
+body='content=changed+value'
+response=$(request "POST /settings.txt?action=edit HTTP/1.1\r\nHost: example\r\nContent-Length: ${#body}\r\n\r\n$body")
+printf '%s\n' "$response" | grep -q 'HTTP/1.1 200 OK'
+test "$(cat "$TEST_TMPDIR/settings.txt")" = 'changed value'

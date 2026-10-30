@@ -111,17 +111,14 @@ int main(int argc, char *argv[]) {
       
        if (req.status_code != 200) {
         page[0] = '\0';
-       } else if (strncmp(req.target,"/choice",(size_t)7) == 0) {
-	fprintf(stderr, "/choice is being read\n");
-	html_choice(req,page);
-      }
-      else if (strncmp(req.target,"/favicon.ico",(size_t)7) == 0){
+       } else if (strncmp(req.target,"/favicon.ico",(size_t)12) == 0){
 	fprintf(stderr, "/favicon.ico is being read\n");
-      } else {
-	fprintf(stderr, "default is being read\n");
-	html_menu(req,page);
-      }
-       reply_size = http_replier(client_socket,page,req.status_code);
+       } else {
+	fprintf(stderr, "resource is being read\n");
+	html_resource(req,page);
+       }
+        reply_size = http_replier(client_socket,page,req.status_code,
+                                  strcmp(req.method, "HEAD") == 0);
       fprintf(stderr, "%d chars sent.\n",reply_size);
       close(client_socket);
       fprintf(stderr, "Client socket closed\n");
