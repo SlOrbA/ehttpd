@@ -4,6 +4,7 @@
 
 typedef struct {
   unsigned char parser_pass;
+  int status_code;
   char version[6];
   char method[6];
   char host[255];
