@@ -3,6 +3,7 @@
 #include <booleans.h>
 #include <http.h>
 #include <stdio.h>
+#include <ctype.h>
 #include <string.h>
 #include <strings.h>
 #include <sys/socket.h>
@@ -12,6 +13,22 @@ static void copy_header_value(char *destination, size_t size, const char *value)
   while (*value == ' ' || *value == '\t') value++;
   snprintf(destination, size, "%s", value);
   destination[strcspn(destination, "\r\n")] = '\0';
+}
+
+static int is_token_char(unsigned char character)
+{
+  if (isalnum(character)) return 1;
+  return strchr("!#$%&'*+-.^_`|~", character) != NULL;
+}
+
+static int valid_field_name(const char *start, const char *end)
+{
+  const char *character;
+  if (start == end) return 0;
+  for (character = start; character < end; character++) {
+    if (!is_token_char((unsigned char)*character)) return 0;
+  }
+  return 1;
 }
 
 http_request http_receptor(int client_socket)
@@ -24,6 +41,7 @@ http_request http_receptor(int client_socket)
   char *line;
   char request_line[RCVBUFSIZE];
   size_t request_line_length;
+  int host_seen = 0;
 
   memset(&req, 0, sizeof(req));
   req.parser_pass = FALSE;
@@ -70,13 +88,19 @@ http_request http_receptor(int client_socket)
     char *value = line + 1;
     char *line_end = next != NULL && next < header_end ? next : header_end;
     char *colon = strchr(value, ':');
-    if (colon == NULL || colon >= line_end || colon == value) {
+    if (colon == NULL || colon >= line_end ||
+        !valid_field_name(value, colon)) {
       req.status_code = 400;
       return req;
     }
-    if (strncasecmp(value, "Host:", 5) == 0)
+    if (strncasecmp(value, "Host:", 5) == 0) {
+      if (host_seen) {
+        req.status_code = 400;
+        return req;
+      }
+      host_seen = 1;
       copy_header_value(req.host, sizeof(req.host), value + 5);
-    else if (strncasecmp(value, "User-Agent:", 11) == 0)
+    } else if (strncasecmp(value, "User-Agent:", 11) == 0)
       copy_header_value(req.useragent, sizeof(req.useragent), value + 11);
     else if (strncasecmp(value, "Referer:", 8) == 0)
       copy_header_value(req.referer, sizeof(req.referer), value + 8);
