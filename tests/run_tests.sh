@@ -1,7 +1,13 @@
 #!/bin/sh
 set -eu
 
-PORT=18080
+if ! command -v wget >/dev/null 2>&1; then
+  echo "SKIP: wget is required for the HTTP smoke test" >&2
+  exit 77
+fi
+
+# Set EHTTPD_TEST_PORT to force a port; otherwise derive one from the test PID.
+PORT=${EHTTPD_TEST_PORT:-$((49152 + ($$ % 10000)))}
 SERVER="../source/ehttpd"
 
 "$SERVER" 4 "$PORT" >/tmp/ehttpd-test.out 2>/tmp/ehttpd-test.err &
@@ -14,7 +20,7 @@ trap cleanup EXIT INT TERM
 
 i=0
 while [ "$i" -lt 20 ]; do
-  if wget -qO- "http://127.0.0.1:$PORT/" > /tmp/ehttpd-test.html 2>/dev/null; then
+  if wget -T 1 -qO- "http://127.0.0.1:$PORT/" > /tmp/ehttpd-test.html 2>/dev/null; then
     break
   fi
   i=$((i + 1))
