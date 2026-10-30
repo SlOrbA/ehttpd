@@ -2,7 +2,7 @@
 
 Tämä tiekartta (Roadmap) määrittelee **ehttpd**-projektin kehitysvaiheet nykyisestä versiosta (`0.03`) kohti turvallista, standardinmukaista ja nykyaikaista sulautettujen järjestelmien HTTP/1.1-, HTTPS (OpenSSL)- ja HTTP/2-palvelinta.
 
-Suunnitelma on jaettu kuuteen selkeään vaiheeseen (Milestones). Jokaisen vaiheen tarkat, tiedosto- ja rivikohtaiset toteutusohjeet löytyvät tiedostosta [`IMPLEMENTATION_PLAN.md`](./IMPLEMENTATION_PLAN.md).
+Suunnitelma on jaettu kuuteen selkeään vaiheeseen (Milestones). Jokaisen vaiheen tarkat, tiedosto- ja rivikohtaiset toteutusohjeet löytyvät tiedostosta [`IMPLEMENTATION_PLAN.md`](./docs/IMPLEMENTATION_PLAN.md).
 
 ---
 

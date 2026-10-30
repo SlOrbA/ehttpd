@@ -1,6 +1,6 @@
 # Tarkka toteutussuunnitelma (Implementation Plan for AI / Gemini Flash)
 
-Tämä dokumentti sisältää **yksityiskohtaiset, tehtäväkohtaiset toteutusohjeet** [`ROADMAP.md`](./ROADMAP.md)-suunnitelman tehtäville.
+Tämä dokumentti sisältää **yksityiskohtaiset, tehtäväkohtaiset toteutusohjeet** [`ROADMAP.md`](../ROADMAP.md)-suunnitelman tehtäville.
 
 > **Ohje toteuttavalle tekoälymallille (esim. Gemini Flash):**
 > * Toteuta **yksi tehtävä kerrallaan** alla olevassa järjestyksessä.
