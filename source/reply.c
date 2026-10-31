@@ -10,6 +10,9 @@
 #include <regex.h>
 #include <stdlib.h>
 #include <ctype.h>
+#include <unistd.h>
+
+#define MAX_EDIT_CONTENT 512
 
 static int build_safe_path(const char *relative_path, char *path, size_t path_size)
 {
@@ -71,11 +74,11 @@ int html_menu(http_request req, char *page) {
         continue;
       }
       if(S_ISREG(file_stat.st_mode)) {
-	sprintf(page+strlen(page),"<li><b>F</b>:<a href='/choice?edit=%s",req.target);
+        sprintf(page+strlen(page),"<li><b>F</b>:<a href='%s",req.target);
 	if (strcmp(req.target,"/")) {
 	  sprintf(page+strlen(page),"/");
 	}
-	sprintf(page+strlen(page),"%s'>%s</a></li>\n",working_directory_ent->d_name,working_directory_ent->d_name);
+        sprintf(page+strlen(page),"%s?action=edit'>%s</a></li>\n",working_directory_ent->d_name,working_directory_ent->d_name);
       } else if (S_ISDIR(file_stat.st_mode)){
 	sprintf(page+strlen(page),"<li><b>B</b>:<a href='%s",req.target);
 	if (strcmp(req.target,"/")) {
@@ -94,7 +97,6 @@ int html_menu(http_request req, char *page) {
 
   sprintf(page+strlen(page),"</ul>\n");
   closedir(working_directory);
-  sprintf(page+strlen(page),"<a href='/choice?new=%s'>Add new file</a>",req.target);
   sprintf(page+strlen(page),"</body>\n");
   sprintf(page+strlen(page),"</html>\n");
   
@@ -289,39 +291,118 @@ static int action_is_edit(const char *query)
   return query != NULL && strcmp(query, "action=edit") == 0;
 }
 
-static int decode_form_content(const char *body, char *out, size_t out_size)
+static int decode_url(const char *input, char *out, size_t out_size, int plus_is_space)
 {
-  size_t input = 0, output = 0;
-  if (strncmp(body, "content=", 8) != 0) return -1;
-  input = 8;
-  while (body[input] != '\0' && body[input] != '&') {
+  size_t offset = 0, output = 0;
+  while (input[offset] != '\0' && input[offset] != '&') {
     if (output + 1 >= out_size) return -1;
-    if (body[input] == '+') out[output++] = ' ';
-    else if (body[input] == '%' && isxdigit((unsigned char)body[input + 1]) &&
-             isxdigit((unsigned char)body[input + 2])) {
-      char hex[3] = { body[input + 1], body[input + 2], '\0' };
-      out[output++] = (char)strtol(hex, NULL, 16);
-      input += 2;
-    } else out[output++] = body[input];
-    input++;
+    if (input[offset] == '+') out[output++] = plus_is_space ? ' ' : '+';
+    else if (input[offset] == '%') {
+      char hex[3];
+      char decoded;
+      if (!isxdigit((unsigned char)input[offset + 1]) ||
+          !isxdigit((unsigned char)input[offset + 2])) return -1;
+      hex[0] = input[offset + 1]; hex[1] = input[offset + 2]; hex[2] = '\0';
+      decoded = (char)strtol(hex, NULL, 16);
+      if (decoded == '\0') return -1;
+      out[output++] = decoded;
+      offset += 2;
+    } else out[output++] = input[offset];
+    offset++;
   }
   out[output] = '\0';
   return 0;
 }
 
+static int html_escape(const char *input, char *out, size_t out_size)
+{
+  size_t used = 0;
+  while (*input != '\0') {
+    const char *replacement = NULL;
+    if (*input == '&') replacement = "&amp;";
+    else if (*input == '<') replacement = "&lt;";
+    else if (*input == '>') replacement = "&gt;";
+    else if (*input == '\"') replacement = "&quot;";
+    else if (*input == '\'') replacement = "&#39;";
+    if (replacement != NULL) {
+      size_t length = strlen(replacement);
+      if (used + length >= out_size) return -1;
+      memcpy(out + used, replacement, length);
+      used += length;
+    } else {
+      if (used + 1 >= out_size) return -1;
+      out[used++] = *input;
+    }
+    input++;
+  }
+  out[used] = '\0';
+  return 0;
+}
+
+static int url_encode_path(const char *input, char *out, size_t out_size)
+{
+  static const char hex[] = "0123456789ABCDEF";
+  size_t used = 0;
+  while (*input != '\0') {
+    unsigned char character = (unsigned char)*input++;
+    if (isalnum(character) || strchr("/-._~", character) != NULL) {
+      if (used + 1 >= out_size) return -1;
+      out[used++] = (char)character;
+    } else {
+      if (used + 3 >= out_size) return -1;
+      out[used++] = '%'; out[used++] = hex[character >> 4]; out[used++] = hex[character & 15];
+    }
+  }
+  out[used] = '\0';
+  return 0;
+}
+
+static int save_content(const char *path, const char *content)
+{
+  char temporary_path[2100];
+  int fd;
+  int failed = 0;
+  FILE *file;
+  if (snprintf(temporary_path, sizeof(temporary_path), "%s.tmp.XXXXXX", path) >=
+      (int)sizeof(temporary_path)) return -1;
+  fd = mkstemp(temporary_path);
+  if (fd < 0) return -1;
+  file = fdopen(fd, "w");
+  if (file == NULL) { close(fd); unlink(temporary_path); return -1; }
+  if (fputs(content, file) == EOF) failed = 1;
+  if (!failed && fflush(file) != 0) failed = 1;
+  if (fclose(file) != 0) failed = 1;
+  if (failed) {
+    unlink(temporary_path);
+    return -1;
+  }
+  if (rename(temporary_path, path) != 0) { unlink(temporary_path); return -1; }
+  return 0;
+}
+
 int html_resource(http_request req, char *page)
 {
+  char encoded_path[3072];
   char path[1024];
   char safe_path[2048];
-  char content[65536];
+  char content[2048];
+  char escaped_path[6144];
+  char escaped_content[10240];
+  char query_buf[64];
   char *query;
   FILE *file;
   struct stat file_stat;
   size_t read_count;
 
-  snprintf(path, sizeof(path), "%s", req.target);
-  query = strchr(path, '?');
-  if (query != NULL) *query++ = '\0';
+  snprintf(encoded_path, sizeof(encoded_path), "%s", req.target);
+  query = strchr(encoded_path, '?');
+  if (query != NULL) {
+    *query++ = '\0';
+    snprintf(query_buf, sizeof(query_buf), "%s", query);
+  } else query_buf[0] = '\0';
+  if (decode_url(encoded_path, path, sizeof(path), 0) < 0 ||
+      url_encode_path(path, encoded_path, sizeof(encoded_path)) < 0 ||
+      html_escape(path, escaped_path, sizeof(escaped_path)) < 0) return 0;
   if (build_safe_path(path, safe_path, sizeof(safe_path)) < 0 ||
       stat(safe_path, &file_stat) != 0) {
     page[0] = '\0';
@@ -337,15 +418,13 @@ int html_resource(http_request req, char *page)
   }
 
   if (strcmp(req.method, "POST") == 0) {
-    if (!action_is_edit(query) || decode_form_content(req.body, content, sizeof(content)) < 0)
+    if (!action_is_edit(query_buf) || strncmp(req.body, "content=", 8) != 0 ||
+        decode_url(req.body + 8, content, MAX_EDIT_CONTENT + 1, 1) < 0)
       return 0;
-    file = fopen(safe_path, "w");
-    if (file == NULL) return 0;
-    fputs(content, file);
-    fclose(file);
+    if (save_content(safe_path, content) < 0) return 0;
     snprintf(page, 1024 * 1024,
              "<html><body><p>Saved <a href='%s'>%s</a>.</p></body></html>\n",
-             path, path);
+             encoded_path, escaped_path);
     return 1;
   }
 
@@ -354,16 +433,23 @@ int html_resource(http_request req, char *page)
   read_count = fread(content, 1, sizeof(content) - 1, file);
   fclose(file);
   content[read_count] = '\0';
-  if (action_is_edit(query)) {
+  if (html_escape(content, escaped_content, sizeof(escaped_content)) < 0) return 0;
+  if (action_is_edit(query_buf) && file_stat.st_size <= MAX_EDIT_CONTENT) {
     snprintf(page, 1024 * 1024,
              "<html><body><h2>Edit %s</h2><form method='post' action='%s?action=edit'>"
              "<textarea name='content' rows='24' cols='80'>%s</textarea>"
              "<br><input type='submit' value='Save'></form></body></html>\n",
-             path, path, content);
+             escaped_path, encoded_path, escaped_content);
   } else {
-    snprintf(page, 1024 * 1024,
-             "<html><body><h2>%s</h2><p><a href='%s?action=edit'>Edit</a></p>"
-             "<pre>%s</pre></body></html>\n", path, path, content);
+    if (file_stat.st_size <= MAX_EDIT_CONTENT)
+      snprintf(page, 1024 * 1024,
+               "<html><body><h2>%s</h2><p><a href='%s?action=edit'>Edit</a></p>"
+               "<pre>%s</pre></body></html>\n",
+               escaped_path, encoded_path, escaped_content);
+    else
+      snprintf(page, 1024 * 1024,
+               "<html><body><h2>%s</h2><p>File is too large to edit.</p>"
+               "<pre>%s</pre></body></html>\n", escaped_path, escaped_content);
   }
   return 1;
 }

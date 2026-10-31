@@ -8,6 +8,7 @@ fi
 
 SERVER=$(cd ../source && pwd)/ehttpd
 TEST_TMPDIR=$(mktemp -d "${TMPDIR:-/tmp}/ehttpd-test.XXXXXX")
+TEST_TMPDIR=$(cd "$TEST_TMPDIR" && pwd)
 SERVER_PID=
 
 cleanup() {
@@ -61,6 +62,8 @@ request() {
 }
 
 printf 'original value\n' > "$TEST_TMPDIR/settings.txt"
+wget -T 1 -qO "$TEST_TMPDIR/listing.html" "http://127.0.0.1:$PORT/"
+grep -q "settings.txt?action=edit" "$TEST_TMPDIR/listing.html"
 response=$(request 'HEAD /settings.txt HTTP/1.1\r\nHost: example\r\n\r\n')
 printf '%s\n' "$response" | grep -q 'HTTP/1.1 200 OK'
 printf '%s\n' "$response" | grep -q 'Content-Length:'
@@ -76,3 +79,11 @@ body='content=changed+value'
 response=$(request "POST /settings.txt?action=edit HTTP/1.1\r\nHost: example\r\nContent-Length: ${#body}\r\n\r\n$body")
 printf '%s\n' "$response" | grep -q 'HTTP/1.1 200 OK'
 test "$(cat "$TEST_TMPDIR/settings.txt")" = 'changed value'
+
+body='content=first%00second'
+request "POST /settings.txt?action=edit HTTP/1.1\r\nHost: example\r\nContent-Length: ${#body}\r\n\r\n$body" >/dev/null
+test "$(cat "$TEST_TMPDIR/settings.txt")" = 'changed value'
+
+printf '<b>& text\n' > "$TEST_TMPDIR/my notes.txt"
+wget -T 1 -qO "$TEST_TMPDIR/spaced.html" "http://127.0.0.1:$PORT/my%20notes.txt"
+grep -q '&lt;b&gt;&amp; text' "$TEST_TMPDIR/spaced.html"
