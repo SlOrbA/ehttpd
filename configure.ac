@@ -23,7 +23,9 @@ AC_TYPE_SIZE_T
 AC_FUNC_FORK
 AC_CHECK_FUNCS(memset regcomp socket strtol)
 AC_CHECK_PROG([WGET], [wget], [yes], [no])
+AC_CHECK_PROG([NC], [nc], [yes], [no])
 AM_CONDITIONAL([HAVE_WGET], [test "x$WGET" = "xyes"])
+AM_CONDITIONAL([HAVE_NC], [test "x$NC" = "xyes"])
 
 AC_CONFIG_FILES(Makefile
                  source/Makefile

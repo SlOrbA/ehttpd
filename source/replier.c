@@ -16,7 +16,7 @@ static int send_all(int socket_fd, const char *data, size_t length)
   return 0;
 }
 
-int http_replier(int client_socket, char *page, int status_code)
+int http_replier(int client_socket, char *page, int status_code, int head_only)
 {
   char http_header[1024];
   char date_buf[64];
@@ -43,7 +43,7 @@ int http_replier(int client_socket, char *page, int status_code)
     else if (status_code == 404) reason = "Not Found";
     else if (status_code == 405) reason = "Method Not Allowed";
     else if (status_code == 505) reason = "HTTP Version Not Supported";
-    if (status_code == 405) allow_header = "Allow: GET\r\n";
+    if (status_code == 405) allow_header = "Allow: GET, HEAD, POST\r\n";
     snprintf(page, 1024 * 1024,
              "<html>\n<head><title>HTTP %d %s</title></head>\n"
              "<body><h1>HTTP %d %s</h1></body>\n</html>\n",
@@ -62,7 +62,7 @@ int http_replier(int client_socket, char *page, int status_code)
   header_length = strlen(http_header);
   page_length = strlen(page);
   if (send_all(client_socket, http_header, header_length) < 0 ||
-      send_all(client_socket, page, page_length) < 0) {
+      (!head_only && send_all(client_socket, page, page_length) < 0)) {
     fprintf(stderr, "Could not send complete HTTP response.\n");
     return 0;
   }

@@ -3,7 +3,7 @@
 
 /* Recieving Buffer Size */
 #ifndef RCVBUFSIZE 
-#define RCVBUFSIZE 1024
+#define RCVBUFSIZE 4096
 #endif
 
 #ifndef _DEF_HTTP_RECEPTOR_

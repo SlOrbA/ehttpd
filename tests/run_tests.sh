@@ -1,13 +1,14 @@
 #!/bin/sh
 set -eu
 
-if ! command -v wget >/dev/null 2>&1; then
-  echo "SKIP: wget is required for the HTTP smoke test" >&2
+if ! command -v wget >/dev/null 2>&1 || ! command -v nc >/dev/null 2>&1; then
+  echo "SKIP: wget and nc are required for the HTTP tests" >&2
   exit 77
 fi
 
-SERVER="../source/ehttpd"
+SERVER=$(cd ../source && pwd)/ehttpd
 TEST_TMPDIR=$(mktemp -d "${TMPDIR:-/tmp}/ehttpd-test.XXXXXX")
+TEST_TMPDIR=$(cd "$TEST_TMPDIR" && pwd)
 SERVER_PID=
 
 cleanup() {
@@ -18,6 +19,8 @@ cleanup() {
   rm -rf "$TEST_TMPDIR"
 }
 trap cleanup EXIT INT TERM
+
+cd "$TEST_TMPDIR"
 
 # Try several high ports. EHTTPD_TEST_PORT is useful when a caller needs to
 # select a specific port, while normal runs retry if the derived port is busy.
@@ -53,3 +56,34 @@ done
 test -s "$TEST_TMPDIR/response.html"
 grep -q '<html>' "$TEST_TMPDIR/response.html"
 grep -q 'Ready serve requests' "$TEST_TMPDIR/server.err"
+
+request() {
+  printf '%b' "$1" | nc -w 2 127.0.0.1 "$PORT"
+}
+
+printf 'original value\n' > "$TEST_TMPDIR/settings.txt"
+wget -T 1 -qO "$TEST_TMPDIR/listing.html" "http://127.0.0.1:$PORT/"
+grep -q "settings.txt?action=edit" "$TEST_TMPDIR/listing.html"
+response=$(request 'HEAD /settings.txt HTTP/1.1\r\nHost: example\r\n\r\n')
+printf '%s\n' "$response" | grep -q 'HTTP/1.1 200 OK'
+printf '%s\n' "$response" | grep -q 'Content-Length:'
+if printf '%s\n' "$response" | grep -q '<html>'; then
+  exit 1
+fi
+
+wget -T 1 -qO "$TEST_TMPDIR/edit.html" \
+  "http://127.0.0.1:$PORT/settings.txt?action=edit"
+grep -q "method='post'" "$TEST_TMPDIR/edit.html"
+
+body='content=changed+value'
+response=$(request "POST /settings.txt?action=edit HTTP/1.1\r\nHost: example\r\nContent-Length: ${#body}\r\n\r\n$body")
+printf '%s\n' "$response" | grep -q 'HTTP/1.1 200 OK'
+test "$(cat "$TEST_TMPDIR/settings.txt")" = 'changed value'
+
+body='content=first%00second'
+request "POST /settings.txt?action=edit HTTP/1.1\r\nHost: example\r\nContent-Length: ${#body}\r\n\r\n$body" >/dev/null
+test "$(cat "$TEST_TMPDIR/settings.txt")" = 'changed value'
+
+printf '<b>& text\n' > "$TEST_TMPDIR/my notes.txt"
+wget -T 1 -qO "$TEST_TMPDIR/spaced.html" "http://127.0.0.1:$PORT/my%20notes.txt"
+grep -q '&lt;b&gt;&amp; text' "$TEST_TMPDIR/spaced.html"

@@ -11,6 +11,7 @@ typedef struct {
   char target[1024];
   char referer[255];
   char useragent[255];
+  char body[2048];
 } http_request;
 
 #endif
