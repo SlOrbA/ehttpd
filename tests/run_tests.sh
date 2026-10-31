@@ -8,6 +8,7 @@ fi
 
 SERVER=$(cd ../source && pwd)/ehttpd
 TEST_TMPDIR=$(mktemp -d "${TMPDIR:-/tmp}/ehttpd-test.XXXXXX")
+TEST_TMPDIR=$(cd "$TEST_TMPDIR" && pwd)
 SERVER_PID=
 
 cleanup() {
@@ -64,7 +65,11 @@ printf '%s\n' "$response" | grep -q 'Allow: GET'
 
 assert_status 'GET / HTTP/1.0\r\nHost: example\r\n\r\n' '505 HTTP Version Not Supported'
 
-printf 'original\n' > protected.txt
+legacy_edit_file='protected.txt&line=0&repl=modified'
+printf 'original\n' > "$legacy_edit_file"
+assert_status 'GET /choice?edit=/protected.txt&line=0&repl=modified HTTP/1.1\r\nHost: example\r\n\r\n' '200 OK'
+test "$(cat "$legacy_edit_file")" = 'modified'
+printf 'original\n' > "$legacy_edit_file"
 assert_status 'POST /choice?edit=/protected.txt&line=0&repl=modified HTTP/1.1\r\nHost: example\r\n\r\n' '405 Method Not Allowed'
-test "$(cat protected.txt)" = 'original'
+test "$(cat "$legacy_edit_file")" = 'original'
 grep -q 'Ready serve requests' server.err
